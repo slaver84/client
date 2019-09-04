@@ -100,7 +100,7 @@ const TlfInfoLine = (props: Props) => (
   </Kb.Box2>
 )
 
-const styles = Styles.styleSheetCreate({
+const styles = Styles.styleSheetCreate(() => ({
   meta: {
     alignSelf: 'center',
     marginRight: Styles.globalMargins.xtiny,
@@ -115,6 +115,6 @@ const styles = Styles.styleSheetCreate({
       whiteSpace: 'nowrap',
     },
   }),
-})
+}))
 
 export default TlfInfoLine

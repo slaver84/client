@@ -53,7 +53,7 @@ const Filename = (props: Props) => {
 
 export default Filename
 
-const styles = Styles.styleSheetCreate({
+const styles = Styles.styleSheetCreate(() => ({
   breakAll: Styles.platformStyles({
     isElectron: {
       wordBreak: 'break-all',
@@ -62,4 +62,4 @@ const styles = Styles.styleSheetCreate({
   noShrink: {
     flexShrink: 0,
   },
-})
+}))

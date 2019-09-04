@@ -259,7 +259,7 @@ export default (Styles.isMobile
   ? (props: Props) => <MobileWithHeader customComponent={<MobileHeader {...props} />} {...props} />
   : Kb.HeaderOrPopup(DesktopSendLinkToChat))
 
-const styles = Styles.styleSheetCreate({
+const styles = Styles.styleSheetCreate(() => ({
   avatar: {
     marginRight: Styles.globalMargins.xtiny,
   },
@@ -320,4 +320,4 @@ const styles = Styles.styleSheetCreate({
   onlyWhoGetAccess: {
     marginTop: Styles.globalMargins.xsmall,
   },
-})
+}))

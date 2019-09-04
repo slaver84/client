@@ -31,7 +31,7 @@ const TextView = (props: Props) => {
   )
 }
 
-const styles = Styles.styleSheetCreate({
+const styles = Styles.styleSheetCreate(() => ({
   container: {
     backgroundColor: Styles.globalColors.blueLighter3,
     overflow: 'scroll',
@@ -52,6 +52,6 @@ const styles = Styles.styleSheetCreate({
     color: Styles.globalColors.black_on_white,
     whiteSpace: 'pre-wrap',
   },
-})
+}))
 
 export default TextView
