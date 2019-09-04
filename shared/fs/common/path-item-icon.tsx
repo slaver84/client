@@ -181,7 +181,7 @@ const styles = Styles.styleSheetCreate(() => ({
 }))
 
 const badgeStyles = {
-  '32': Styles.styleSheetCreate({
+  '32': Styles.styleSheetCreate(() => ({
     newBadge: {
       left: 16,
       position: 'absolute',
@@ -202,8 +202,8 @@ const badgeStyles = {
       position: 'absolute',
       top: -14,
     },
-  }),
-  '48': Styles.styleSheetCreate({
+  })),
+  '48': Styles.styleSheetCreate(() => ({
     newBadge: {
       left: 32,
       position: 'absolute',
@@ -224,5 +224,5 @@ const badgeStyles = {
       position: 'absolute',
       top: -18,
     },
-  }),
+  })),
 }
