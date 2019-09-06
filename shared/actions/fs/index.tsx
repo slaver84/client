@@ -355,28 +355,29 @@ function* folderList(_: TypedState, action: FsGen.FolderListLoadPayload | FsGen.
   }
 }
 
-function* monitorDownloadProgress(key: string, opID: RPCTypes.OpID) {
-  // This loop doesn't finish on its own, but it's in a Saga.race with
-  // `SimpleFSWait`, so it's "canceled" when the other finishes.
-  while (true) {
-    yield Saga.delay(500)
-    const progress: Saga.RPCPromiseType<
-      typeof RPCTypes.SimpleFSSimpleFSCheckRpcPromise
-    > = yield RPCTypes.SimpleFSSimpleFSCheckRpcPromise({opID})
-    if (progress.bytesTotal === 0) {
-      continue
-    }
-    yield Saga.put(
-      FsGen.createDownloadProgress({
-        completePortion: progress.bytesWritten / progress.bytesTotal,
-        endEstimate: progress.endEstimate,
-        key,
-      })
-    )
-  }
-}
+const download = (
+  state: TypedState,
+  action: FsGen.DownloadPayload | FsGen.ShareNativePayload | FsGen.SaveMediaPayload
+) =>
+  RPCTypes.SimpleFSSimpleFSStartDownloadRpcPromise({
+    isRegularDownload: action.type === FsGen.download,
+    path: Constants.pathToRPCPath(action.payload.path).kbfs,
+  }).then(downloadID =>
+    action.type === FsGen.download
+      ? null
+      : FsGen.createSetPathItemActionMenuDownload({
+          downloadID,
+          intent: Constants.getDownloadIntentFromAction(action),
+        })
+  )
 
-function* download(
+const cancelDownload = (state: TypedState, action: FsGen.CancelDownloadPayload) =>
+  RPCTypes.SimpleFSSimpleFSCancelDownloadRpcPromise({downloadID: action.payload.downloadID})
+
+const dismissDownload = (state: TypedState, action: FsGen.DismissDownloadPayload) =>
+  RPCTypes.SimpleFSSimpleFSDismissDownloadRpcPromise({downloadID: action.payload.downloadID})
+
+function* olddownload(
   _: TypedState,
   action: FsGen.DownloadPayload | FsGen.ShareNativePayload | FsGen.SaveMediaPayload
 ) {
@@ -478,17 +479,6 @@ function* upload(_: TypedState, action: FsGen.UploadPayload) {
   } catch (error) {
     yield makeRetriableErrorHandler(action, path)(error).map(action => Saga.put(action))
   }
-}
-
-const cancelDownload = (state: TypedState, action: FsGen.CancelDownloadPayload) => {
-  const download = state.fs.downloads.get(action.payload.key)
-  if (!download) {
-    return
-  }
-  const {
-    meta: {opID},
-  } = download
-  return RPCTypes.SimpleFSSimpleFSCancelRpcPromise({opID}).then(() => {})
 }
 
 const getWaitDuration = (endEstimate: number | null, lower: number, upper: number): number => {
@@ -959,6 +949,8 @@ const onNonPathChange = (_: TypedState, action: EngineGen.Keybase1NotifyFSFSSubs
       return FsGen.createPollJournalStatus()
     case RPCTypes.SubscriptionTopic.onlineStatus:
       return checkIfWeReConnectedToMDServerUpToNTimes(1)
+    case RPCTypes.SubscriptionTopic.downloadStatus:
+      return FsGen.createLoadDownloadStatus()
   }
 }
 
@@ -976,13 +968,46 @@ const loadPathInfo = (_: TypedState, action: FsGen.LoadPathInfoPayload) =>
       })
   )
 
+const loadDownloadInfo = (state: TypedState, action: FsGen.LoadDownloadInfoPayload) =>
+  RPCTypes.SimpleFSSimpleFSGetDownloadInfoRpcPromise({
+    downloadID: action.payload.downloadID,
+  })
+    .then(res =>
+      FsGen.createLoadedDownloadInfo({
+        downloadID: action.payload.downloadID,
+        info: Constants.makeDownloadInfo({
+          filename: res.filename,
+          isRegularDownload: res.isRegularDownload,
+          path: res.path.path,
+          startTime: res.startTime,
+        }),
+      })
+    )
+    .catch()
+
+const loadDownloadStatus = (state: TypedState, action: FsGen.LoadDownloadStatusPayload) =>
+  RPCTypes.SimpleFSSimpleFSGetDownloadStatusRpcPromise().then(res =>
+    FsGen.createLoadedDownloadStatus({
+      regularDownloads: I.List(res.regularDownloadIDs || []),
+      state: I.Map(
+        (res.states || []).map(s => [
+          s.downloadID,
+          Constants.makeDownloadState({
+            canceled: s.canceled,
+            done: s.done,
+            endEstimate: s.endEstimate,
+            error: s.error,
+            localPath: s.localPath,
+            progress: s.progress,
+          }),
+        ])
+      ),
+    })
+  )
+
 function* fsSaga(): Saga.SagaGenerator<any, any> {
   yield* Saga.chainAction2(FsGen.refreshLocalHTTPServerInfo, refreshLocalHTTPServerInfo)
-  yield* Saga.chainAction2(FsGen.cancelDownload, cancelDownload)
-  yield* Saga.chainGenerator<FsGen.DownloadPayload | FsGen.ShareNativePayload | FsGen.SaveMediaPayload>(
-    [FsGen.download, FsGen.shareNative, FsGen.saveMedia],
-    download
-  )
+
   yield* Saga.chainGenerator<FsGen.UploadPayload>(FsGen.upload, upload)
   yield* Saga.chainGenerator<FsGen.FolderListLoadPayload | FsGen.EditSuccessPayload>(
     [FsGen.folderListLoad, FsGen.editSuccess],
@@ -1024,6 +1049,15 @@ function* fsSaga(): Saga.SagaGenerator<any, any> {
     yield* Saga.chainAction2(FsGen.finishManualConflictResolution, finishManualCR)
   }
   yield* Saga.chainAction2(FsGen.loadPathInfo, loadPathInfo)
+
+  yield* Saga.chainAction2<FsGen.DownloadPayload | FsGen.ShareNativePayload | FsGen.SaveMediaPayload>(
+    [FsGen.download, FsGen.shareNative, FsGen.saveMedia],
+    download
+  )
+  yield* Saga.chainAction2(FsGen.cancelDownload, cancelDownload)
+  yield* Saga.chainAction2(FsGen.dismissDownload, dismissDownload)
+  yield* Saga.chainAction2(FsGen.loadDownloadStatus, loadDownloadStatus)
+  yield* Saga.chainAction2(FsGen.loadDownloadInfo, loadDownloadInfo)
 
   yield* Saga.chainAction2(FsGen.subscribePath, subscribePath)
   yield* Saga.chainAction2(FsGen.subscribeNonPath, subscribeNonPath)
