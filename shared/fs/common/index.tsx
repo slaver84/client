@@ -17,9 +17,10 @@ export {
   useFsChildren,
   useFsDownloadInfo,
   useFsDownloadStatus,
-  useFsTlfs,
   useFsJournalStatus,
   useFsOnlineStatus,
   useFsPathInfo,
+  useFsTlfs,
+  useFsWatchDownloadForMobile,
   useDispatchWhenConnected as useDispatchWhenKbfsIsConnected,
 } from './hooks'
