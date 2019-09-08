@@ -6,7 +6,7 @@ import * as Saga from '../../util/saga'
 import {TypedState} from '../../constants/reducer'
 import {parseUri, launchImageLibraryAsync} from '../../util/expo-image-picker'
 import {makeRetriableErrorHandler} from './shared'
-import {saveAttachmentDialog, showShareActionSheetFromURL} from '../platform-specific'
+import {saveAttachmentToCameraRoll, showShareActionSheetFromURL} from '../platform-specific'
 
 const pickAndUploadToPromise = (_: TypedState, action: FsGen.PickAndUploadPayload): Promise<any> =>
   launchImageLibraryAsync(action.payload.type)
@@ -27,10 +27,19 @@ const finishedDownloadWithIntent = (state: TypedState, action: FsGen.FinishedDow
     logger.warn('missing download', downloadID)
     return
   }
+  if (downloadState.error) {
+    return [
+      FsGen.createDismissDownload({downloadID}),
+      FsGen.createFsError({
+        error: Constants.makeError({error: downloadState.error, erroredAction: action}),
+        expectedIfOffline: false,
+      }),
+    ]
+  }
   const {localPath} = downloadState
   switch (downloadIntent) {
     case Types.DownloadIntent.CameraRoll:
-      return saveAttachmentDialog(localPath)
+      return saveAttachmentToCameraRoll(localPath, mimeType)
         .then(() => FsGen.createDismissDownload({downloadID}))
         .catch(makeRetriableErrorHandler(action))
     case Types.DownloadIntent.Share:
@@ -39,7 +48,7 @@ const finishedDownloadWithIntent = (state: TypedState, action: FsGen.FinishedDow
         .then(() => FsGen.createDismissDownload({downloadID}))
         .catch(makeRetriableErrorHandler(action))
     case Types.DownloadIntent.None:
-      return
+      return undefined
     default:
       return undefined
   }
